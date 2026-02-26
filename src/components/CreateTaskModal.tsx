@@ -50,7 +50,6 @@ export default function CreateTaskModal({ open, onClose, task }: CreateTaskModal
   return () => clearTimeout(timeout);
 }, [open, task]);
 
-  // Mutation for create or update task
   const mutation = useMutation({
     mutationFn: isEditing ? updateTask : createTask,
     onSuccess: (updatedTask) => {

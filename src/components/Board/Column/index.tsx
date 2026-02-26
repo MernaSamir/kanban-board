@@ -3,7 +3,7 @@ import TaskCard from "./TaskCard";
 import { Task } from "@/types/task";
 import { useDroppable } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 
 const TASKS_PER_PAGE = 5;
 
@@ -19,19 +19,40 @@ export default function Column({
   onEdit?: (task: Task) => void;
 }) {
   const [page, setPage] = useState(1);
-
   const { setNodeRef, isOver } = useDroppable({ id: column });
 
-  // Filter tasks by column and search query
-  const filteredTasks = tasks.filter((t) => 
-    t.column === column &&
-    (t.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-     t.description.toLowerCase().includes(searchQuery.toLowerCase()))
-  );
+  // Normalize safely
+  const normalize = (value?: string) =>
+    (value ?? "").toLowerCase().replace(/\s+/g, "_");
+
+  const query = normalize(searchQuery);
+
+  // SAFE filtering (NO crashes)
+  const filteredTasks = useMemo(() => {
+    return tasks.filter((task) => {
+      const matchesColumn =
+        normalize(task.column) === normalize(column);
+
+      const matchesSearch =
+        !query ||
+        normalize(task.title).includes(query) ||
+        normalize(task.description).includes(query);
+
+      return matchesColumn && matchesSearch;
+    });
+  }, [tasks, column, query]);
+
+  // Reset page when filter changes
+  useEffect(() => {
+    setPage(1);
+  }, [filteredTasks.length]);
 
   // Pagination
   const totalPages = Math.ceil(filteredTasks.length / TASKS_PER_PAGE);
-  const paginatedTasks = filteredTasks.slice((page - 1) * TASKS_PER_PAGE, page * TASKS_PER_PAGE);
+  const paginatedTasks = useMemo(() => {
+    const start = (page - 1) * TASKS_PER_PAGE;
+    return filteredTasks.slice(start, start + TASKS_PER_PAGE);
+  }, [filteredTasks, page]);
 
   return (
     <Paper
@@ -51,8 +72,11 @@ export default function Column({
       </Typography>
 
       <Box sx={{ flex: 1, minHeight: 0 }}>
-        <SortableContext items={paginatedTasks?.map(t => t.id).filter((id): id is string => id !== undefined)} strategy={verticalListSortingStrategy}>
-          {paginatedTasks?.map((task) => (
+        <SortableContext
+          items={paginatedTasks.map(t => t.id).filter(Boolean)}
+          strategy={verticalListSortingStrategy}
+        >
+          {paginatedTasks.map((task) => (
             <TaskCard key={task.id} task={task} onEdit={onEdit} />
           ))}
         </SortableContext>
@@ -63,7 +87,7 @@ export default function Column({
           <Pagination
             count={totalPages}
             page={page}
-            onChange={(_e, value) => setPage(value)}
+            onChange={(_, value) => setPage(value)}
             size="small"
             color="primary"
           />

@@ -62,7 +62,6 @@ export default function Board() {
 
     setActiveTask(null);
   }
-
   return (
     <>
       <DndContext
