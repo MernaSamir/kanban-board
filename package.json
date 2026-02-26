@@ -17,6 +17,7 @@
     "@mui/icons-material": "^7.3.8",
     "@mui/material": "^7.3.8",
     "@mui/system": "^7.3.8",
+    "@supabase/supabase-js": "^2.97.0",
     "@tanstack/react-query": "^5.90.21",
     "axios": "^1.13.5",
     "next": "16.1.6",

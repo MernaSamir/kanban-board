@@ -1,71 +1,71 @@
 import { NextResponse } from "next/server";
-import fs from "fs";
-import path from "path";
+import { createClient } from "@supabase/supabase-js";
 
-// ✅ db.json is in PROJECT ROOT
-const dbFile = path.join(process.cwd(), "db.json");
+// Initialize Supabase
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
 
-const readTasks = () => {
-  if (!fs.existsSync(dbFile)) {
-    fs.writeFileSync(dbFile, JSON.stringify({ tasks: [] }, null, 2));
-    return [];
-  }
-
-  const data = fs.readFileSync(dbFile, "utf-8");
-  return JSON.parse(data).tasks ?? [];
-};
-
-const saveTasks = (tasks: any[]) => {
-  fs.writeFileSync(dbFile, JSON.stringify({ tasks }, null, 2));
-};
-
-// ✅ UPDATE TASK
 export async function PUT(
   req: Request,
-  context: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = await context.params;
-    const updatedData = await req.json();
-
-    const tasks = readTasks();
-    const index = tasks.findIndex((t) => t.id === id);
-
-    if (index === -1) {
-      return NextResponse.json({ error: "Task not found" }, { status: 404 });
+    const { id } = await params; // ✅ unwrap promise
+    if (!id) {
+      return NextResponse.json({ error: "Missing task id" }, { status: 400 });
     }
 
-    tasks[index] = { ...tasks[index], ...updatedData };
-    saveTasks(tasks);
+    const updatedData = await req.json();
 
-    return NextResponse.json(tasks[index]);
-  } catch (err) {
+    const { data, error } = await supabase
+      .from("tasks")
+      .update(updatedData)
+      .eq("id", id)
+      .select()
+      .single();
+
+    if (error) {
+      console.error("Supabase PUT error:", error);
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    return NextResponse.json(data);
+  } catch (err: any) {
     console.error("PUT failed:", err);
-    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
+    return NextResponse.json({ error: err.message || "Internal Server Error" }, { status: 500 });
   }
 }
 
-// ✅ DELETE TASK
 export async function DELETE(
   _req: Request,
-  context: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = await context.params;
+    const { id } = await params; // ✅ unwrap promise
+    if (!id) {
+      return NextResponse.json({ error: "Missing task id" }, { status: 400 });
+    }
 
-    const tasks = readTasks();
-    const exists = tasks.some((t) => t.id === id);
+    const { data, error } = await supabase
+      .from("tasks")
+      .delete()
+      .eq("id", id)
+      .select(); // ensures deleted row is returned
 
-    if (!exists) {
+    if (error) {
+      console.error("Supabase DELETE error:", error);
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    if (!data || data.length === 0) {
       return NextResponse.json({ error: "Task not found" }, { status: 404 });
     }
 
-    const updatedTasks = tasks.filter((t) => t.id !== id);
-    saveTasks(updatedTasks);
-
     return NextResponse.json({ success: true });
-  } catch (err) {
+  } catch (err: any) {
     console.error("DELETE failed:", err);
-    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
+    return NextResponse.json({ error: err.message || "Internal Server Error" }, { status: 500 });
   }
 }

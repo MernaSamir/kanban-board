@@ -1,38 +1,56 @@
 import { NextResponse } from "next/server";
-import fs from "fs";
-import path from "path";
+import { createClient } from "@supabase/supabase-js";
 
-const dbPath = path.join(process.cwd(), "db.json");
-
-function readDB() {
-  if (!fs.existsSync(dbPath)) {
-    fs.writeFileSync(dbPath, JSON.stringify({ tasks: [] }, null, 2));
-  }
-  return JSON.parse(fs.readFileSync(dbPath, "utf8"));
-}
-
-function writeDB(data: any) {
-  fs.writeFileSync(dbPath, JSON.stringify(data, null, 2));
-}
+// Initialize Supabase client using env variables
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
 
 // GET /api/tasks
 export async function GET() {
-  const db = readDB();
-  return NextResponse.json(db.tasks);
+  try {
+    const { data, error } = await supabase.from("tasks").select("*");
+
+    if (error) {
+      console.error("Supabase GET error:", error);
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    return NextResponse.json(data ?? []);
+  } catch (err: any) {
+    console.error("GET failed:", err);
+    return NextResponse.json({ error: err.message || "Internal Server Error" }, { status: 500 });
+  }
 }
 
 // POST /api/tasks
 export async function POST(req: Request) {
-  const body = await req.json();
-  const db = readDB();
+  try {
+    const body = await req.json();
 
-  const newTask = {
-    id: Date.now().toString(),
-    ...body,
-  };
+    const { data, error } = await supabase
+      .from("tasks")
+      .insert([
+        {
+          ...body,
+          created_at: new Date().toISOString(),
+        },
+      ])
+      .select(); // ensures Supabase returns the inserted row
 
-  db.tasks.push(newTask);
-  writeDB(db);
+    if (error) {
+      console.error("Supabase POST error:", error);
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
 
-  return NextResponse.json(newTask, { status: 201 });
+    if (!data || data.length === 0) {
+      return NextResponse.json({ error: "Failed to create task" }, { status: 500 });
+    }
+
+    return NextResponse.json(data[0], { status: 201 });
+  } catch (err: any) {
+    console.error("POST failed:", err);
+    return NextResponse.json({ error: err.message || "Internal Server Error" }, { status: 500 });
+  }
 }
