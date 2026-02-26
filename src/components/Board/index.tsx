@@ -49,19 +49,24 @@ export default function Board() {
     setActiveTask(task);
   }
 
-  function handleDragEnd(event: DragEndEvent) {
-    const { active, over } = event;
-    if (!over) return setActiveTask(null);
+ function handleDragEnd(event: DragEndEvent) {
+  const { active, over } = event;
 
-    const task = active.data.current as Task;
-    const newColumn = over.id as string;
-
-    if (task.column !== newColumn) {
-      mutation.mutate({ ...task, column: newColumn });
-    }
-
+  if (!over) {
     setActiveTask(null);
+    return;
   }
+  const activeTask = active.data.current as Task;
+  const newColumn = over.id as string;
+  if (!["Backlog", "In progress", "Review", "Done"].includes(newColumn)) {
+    setActiveTask(null);
+    return;
+  }
+  if (activeTask.column !== newColumn) {
+    mutation.mutate({ ...activeTask, column: newColumn });
+  }
+  setActiveTask(null);
+}
   return (
     <>
       <DndContext
